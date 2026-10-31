@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import AfterglowCore
+@testable import SleeveCore
 
 struct LyricsTests {
     @Test func parsesTimestampsMetadataAndRepeats() {
@@ -56,6 +56,34 @@ struct LyricsTests {
         ]
         #expect(LyricsMatching.best(candidates, title: "Get Lucky", artist: "Daft Punk", duration: 248) == "best")
         #expect(LyricsMatching.best([candidates[0]], title: "Get Lucky", artist: "Daft Punk", duration: 248) == nil)
+    }
+
+    @Test func titleOnlyMatchingNeedsTheArtistOrTheLength() {
+        let candidates: [(String, LyricsMatching.Candidate)] = [
+            ("synced", .init(title: "ANTIDOTE", artist: "Karan Aujla", duration: 180, hasSynced: true)),
+            ("plain", .init(title: "Antidote", artist: "Karan Aujla", duration: nil, hasSynced: false)),
+            ("other-title", .init(title: "Antidote Remix Pack", artist: "Someone", duration: 200, hasSynced: true)),
+        ]
+        // The channel name overlaps the artist.
+        #expect(LyricsMatching.unambiguous(candidates, title: "ANTIDOTE", artistHint: "Karan Aujla - Topic", duration: nil) == "synced")
+        // A label as "artist" and no length: nothing to verify against, so no guess.
+        #expect(LyricsMatching.unambiguous(candidates, title: "ANTIDOTE", artistHint: "Brown Town Music", duration: nil) == nil)
+        // The only same-named song is by someone else: never shown.
+        let wrongOnly: [(String, LyricsMatching.Candidate)] = [("travis", .init(title: "Antidote", artist: "Travis Scott", duration: 262, hasSynced: true))]
+        #expect(LyricsMatching.unambiguous(wrongOnly, title: "ANTIDOTE", artistHint: "Karan Aujla", duration: nil) == nil)
+        // A matching length is enough when the artist is unknown.
+        #expect(LyricsMatching.unambiguous(candidates + wrongOnly, title: "ANTIDOTE", artistHint: "", duration: 181) == "synced")
+    }
+
+    @Test func bestRejectsSameTitleByAnotherArtist() {
+        let candidates: [(String, LyricsMatching.Candidate)] = [
+            ("other", .init(title: "Alfaaz", artist: "Someone Else", duration: 200, hasSynced: true)),
+        ]
+        #expect(LyricsMatching.best(candidates, title: "Alfaaz", artist: "Hamza Malik", duration: nil) == nil)
+        #expect(LyricsMatching.best(candidates, title: "Alfaaz", artist: "Hamza Malik", duration: 260) == nil)
+        // Collaborations match on a shared name.
+        let collab: [(String, LyricsMatching.Candidate)] = [("ok", .init(title: "Alfaaz", artist: "Zain Zohaib & Hamza Malik", duration: nil, hasSynced: true))]
+        #expect(LyricsMatching.best(collab, title: "Alfaaz", artist: "Hamza Malik", duration: nil) == "ok")
     }
 
     @Test func providerResultNeverInventsLyrics() {

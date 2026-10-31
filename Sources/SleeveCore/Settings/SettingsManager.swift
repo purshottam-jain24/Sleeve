@@ -3,7 +3,7 @@ import Observation
 
 /// Owns the persisted `AppSettings` document.
 ///
-/// Settings are stored as JSON in `~/Library/Application Support/Afterglow/settings.json`.
+/// Settings are stored as JSON in `~/Library/Application Support/Sleeve/settings.json`.
 /// Writes are debounced so dragging a slider does not hammer the disk.
 @MainActor
 @Observable
@@ -24,16 +24,16 @@ public final class SettingsManager {
         self.settings = Self.load(from: fileURL)
     }
 
-    /// `AFTERGLOW_SETTINGS_FILE` points the app at another settings file (testing, demos)
+    /// `SLEEVE_SETTINGS_FILE` points the app at another settings file (testing, demos)
     /// without touching the user's own.
     public static var defaultFileURL: URL? {
-        if let override = ProcessInfo.processInfo.environment["AFTERGLOW_SETTINGS_FILE"] {
+        if let override = ProcessInfo.processInfo.environment["SLEEVE_SETTINGS_FILE"] {
             return URL(fileURLWithPath: override)
         }
         guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
-        return base.appendingPathComponent("Afterglow", isDirectory: true).appendingPathComponent("settings.json")
+        return base.appendingPathComponent("Sleeve", isDirectory: true).appendingPathComponent("settings.json")
     }
 
     private static func load(from url: URL?) -> AppSettings {

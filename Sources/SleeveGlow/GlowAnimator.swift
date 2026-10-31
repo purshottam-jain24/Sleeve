@@ -1,5 +1,5 @@
-import AfterglowAudio
-import AfterglowCore
+import SleeveAudio
+import SleeveCore
 import Foundation
 
 /// Everything the glow needs to know for one frame.
@@ -72,6 +72,8 @@ public struct GlowAnimator: Sendable {
     private var time: Double = 0
     private var phase: Double = 0
     private var cometHead: Double = 0
+    /// Tide: how far up the sides the colour reaches (0 = bottom only, 1 = all round).
+    private var tideLevel: Double = 0.3
     private var activeness: Double = 0
     private var colors: [RGBAColor] = []
     private var hasFrame = false
@@ -156,6 +158,38 @@ public struct GlowAnimator: Sendable {
             medium = 0.7
             band = 1
             highlight = 1
+        case .halo:
+            outer = 0.6 + 0.6 * bass + 0.2 * beat
+            medium = 0.7 + 0.3 * bass
+            band = 0.8 + 0.2 * level
+            highlight = 0.5 + 0.4 * treble
+        case .tide:
+            phaseRate = speed * 0.01
+            outer = 0.7 + 0.3 * bass
+            medium = 0.85
+            band = 0.95
+            highlight = 0.55
+            // Rises quickly with loudness, ebbs slowly.
+            let target = 0.15 + 0.85 * min(1, level * 1.25 + 0.3 * beat)
+            let tau = target > tideLevel ? 0.25 : 1.6
+            tideLevel += (target - tideLevel) * (1 - exp(-dt / tau))
+        case .prism:
+            phaseRate = speed * (0.03 + 0.05 * mid)
+            outer = 0.65 + 0.3 * bass
+            medium = 0.8 + 0.2 * mid
+            band = 0.9
+            highlight = 0.5 + 0.6 * treble
+        case .ember:
+            outer = 0.45 + 0.35 * bass + 0.25 * beat
+            medium = 0.6 + 0.25 * mid
+            band = 0.75 + 0.25 * level
+            highlight = 0.45 + 0.35 * beat
+        case .studio:
+            continuous = false
+            outer = 0.9
+            medium = 0.9
+            band = 0.85
+            highlight = 0.5
         }
         if !motion { phaseRate = 0 }
         phase = (phase + phaseRate * dt * activeness).truncatingRemainder(dividingBy: 1)
@@ -172,7 +206,7 @@ public struct GlowAnimator: Sendable {
         case .hide: 0
         }
         if inputs.idleBehavior == .breathe && activeness < 1 { continuous = true }
-        if style.preset == .ambient && inputs.isPlaying { continuous = false }
+        if (style.preset == .ambient || style.preset == .studio) && inputs.isPlaying { continuous = false }
 
         func blend(_ active: Double, resting: Double) -> Double {
             activeness * active + (1 - activeness) * resting * idleFactor
@@ -267,7 +301,51 @@ public struct GlowAnimator: Sendable {
                 head = max(head, exp(-min(behind, ahead) / 0.015))
             }
             return (cyclic(s + angleOffset), 0.12 + 1.2 * glow, 0.55 * head)
+        case .halo:
+            // Corners of a ~16:10 display, measured along the perimeter from mid-right.
+            var corner = 0.0
+            for c in [0.096, 0.404, 0.596, 0.904] {
+                corner = max(corner, exp(-Self.circularDistance(s, c) / (0.05 + 0.05 * bass)))
+            }
+            return (cyclic(s + angleOffset), 0.08 + (0.95 + 0.45 * bass) * corner, 0.25 * corner * beat)
+        case .tide:
+            // Height above the bottom centre, 0 (bottom) ... 1 (top centre).
+            let d = Self.circularDistance(s, 0.75 + angleOffset) / 0.5
+            let edge = 0.06
+            let water = 1 - Self.smoothstep(min(max((d - tideLevel) / edge + 0.5, 0), 1))
+            let swell = 0.06 * sin(twoPi * 6 * s + t * 1.1)
+            return (ramp(d * 0.8 + phase), 0.1 + 1.0 * water + swell * water, 0.3 * water * max(0, 1 - abs(d - tideLevel) / edge) * level)
+        case .prism:
+            // Three copies of the palette drifting at different speeds; where they agree,
+            // the light runs hot.
+            let a = 0.5 + 0.5 * sin(twoPi * (2 * s + phase))
+            let b = 0.5 + 0.5 * sin(twoPi * (3 * s - phase * 1.3) + 2.1)
+            let c = 0.5 + 0.5 * sin(twoPi * (5 * s + phase * 0.7) + 4.2)
+            let bands = (a * b + b * c + a * c) / 3
+            let color = cyclic(s + angleOffset + 0.15 * (a - c))
+            return (color, 0.3 + 1.1 * bands, pow(bands, 3) * (0.3 + 1.2 * treble))
+        case .ember:
+            // Layered value noise flickers; beats kick a few bright sparks.
+            let flicker = 0.55 * Self.noise(s * 14 + t * 0.9) + 0.3 * Self.noise(s * 37 - t * 1.7) + 0.15 * Self.noise(s * 71 + t * 3.1)
+            let spark = pow(max(0, Self.noise(s * 23 + floor(t * 2) * 7.3) - 0.62) / 0.38, 2) * beat
+            let warm = ramp(0.15 + 0.5 * flicker).interpolated(to: RGBAColor(red: 1, green: 0.55, blue: 0.2), fraction: 0.35)
+            return (warm, 0.25 + 0.75 * flicker * (0.6 + 0.6 * mid) + 1.1 * spark, 0.6 * spark)
+        case .studio:
+            // Top half: neutral daylight; bottom half: the palette, softly.
+            let top = Self.smoothstep(min(max(1 - Self.circularDistance(s, 0.25) / 0.32, 0), 1))
+            let neutral = RGBAColor(red: 1, green: 0.97, blue: 0.93)
+            return (cyclic(s + angleOffset).interpolated(to: neutral, fraction: top), 0.55 + 0.4 * top, 0.15 * top)
         }
+    }
+
+    /// Smooth 1-D value noise in 0...1 (deterministic, no state).
+    static func noise(_ x: Double) -> Double {
+        let i = floor(x), f = x - i
+        func hash(_ n: Double) -> Double {
+            let v = sin(n * 127.1 + 311.7) * 43758.5453
+            return v - floor(v)
+        }
+        return hash(i) + (hash(i + 1) - hash(i)) * smoothstep(f)
     }
 
     /// Palette repeated around the edge with smooth transitions.

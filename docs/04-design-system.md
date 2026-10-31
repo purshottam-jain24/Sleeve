@@ -1,4 +1,4 @@
-# Afterglow — Design System
+# Sleeve — Design System
 
 ## Principles
 
@@ -77,5 +77,5 @@ Every theme has a light and a dark variant, except Cinematic, which is always da
 
 ## Copy
 
-- **Permission prompts** explain the benefit first and the scope second. For example: "Afterglow listens to the sound your Mac plays, only to animate the glow. Audio is analysed in memory and never recorded or uploaded."
+- **Permission prompts** explain the benefit first and the scope second. For example: "Sleeve listens to the sound your Mac plays, only to animate the glow. Audio is analysed in memory and never recorded or uploaded."
 - **Empty states** say what to do. For example: "Play something in Spotify or Music."

@@ -17,8 +17,8 @@ final class ProcessTapCapture: AudioCaptureBackend, @unchecked Sendable {
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var ioProcID: AudioDeviceIOProcID?
 
-    private let controlQueue = DispatchQueue(label: "app.afterglow.audio.tap.control", qos: .userInitiated)
-    private let ioQueue = DispatchQueue(label: "app.afterglow.audio.tap.io", qos: .userInteractive)
+    private let controlQueue = DispatchQueue(label: "app.sleeve.audio.tap.control", qos: .userInitiated)
+    private let ioQueue = DispatchQueue(label: "app.sleeve.audio.tap.io", qos: .userInteractive)
 
     func start(into buffer: AudioSampleBuffer) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -43,7 +43,7 @@ final class ProcessTapCapture: AudioCaptureBackend, @unchecked Sendable {
         let excluded = ownProcess.map { [$0] } ?? []
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: excluded)
         description.uuid = UUID()
-        description.name = "Afterglow Edge Glow"
+        description.name = "Sleeve Edge Glow"
         description.isPrivate = true
         description.muteBehavior = .unmuted
 
@@ -51,8 +51,8 @@ final class ProcessTapCapture: AudioCaptureBackend, @unchecked Sendable {
 
         let outputUID = try CoreAudioQuery.deviceUID(CoreAudioQuery.defaultSystemOutputDevice())
         let aggregate: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Afterglow Tap",
-            kAudioAggregateDeviceUIDKey: "app.afterglow.tap.\(UUID().uuidString)",
+            kAudioAggregateDeviceNameKey: "Sleeve Tap",
+            kAudioAggregateDeviceUIDKey: "app.sleeve.tap.\(UUID().uuidString)",
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,

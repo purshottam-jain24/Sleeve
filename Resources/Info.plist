@@ -5,30 +5,34 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Afterglow</string>
+    <string>Sleeve</string>
     <key>CFBundleExecutable</key>
-    <string>Afterglow</string>
+    <string>Sleeve</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>app.afterglow.Afterglow</string>
+    <string>app.sleeve.Sleeve</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Afterglow</string>
+    <string>Sleeve</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.0</string>
+    <string>1.0.0</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>3</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.music</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2026 Sleeve</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Afterglow reads what's playing in Spotify and Music and lets you control playback from the menu bar.</string>
+    <string>Sleeve reads what's playing in Spotify and Music and lets you control playback from the menu bar.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>Afterglow listens to the sound your Mac plays only to animate the edge glow. Audio is analysed in memory and is never recorded or uploaded.</string>
+    <string>Sleeve listens to the sound your Mac plays only to animate the edge glow. Audio is analysed in memory and is never recorded or uploaded.</string>
 </dict>
 </plist>

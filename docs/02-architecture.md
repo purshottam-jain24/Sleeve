@@ -1,37 +1,37 @@
-# Afterglow — Architecture
+# Sleeve — Architecture
 
 ## Module graph
 
 ```
                  ┌──────────────────────────────┐
-                 │  Afterglow (executable, UI)  │  SwiftUI + AppKit
+                 │  Sleeve (executable, UI)  │  SwiftUI + AppKit
                  │  DesignSystem · Modes ·      │
                  │  MenuBar · Settings · System │
                  └──────┬──────────┬────────────┘
                         │          │
              ┌──────────▼───┐  ┌───▼───────────┐
-             │ AfterglowGlow│  │ AfterglowAudio│
+             │ SleeveGlow│  │ SleeveAudio│
              │ EdgeGlow*    │──▶ Capture +     │
              └──────┬───────┘  │ Analyzer      │
                     │          └───────────────┘
              ┌──────▼──────────────────────────┐
-             │ AfterglowCore                   │
+             │ SleeveCore                   │
              │ Models · Settings · Music ·     │
              │ Artwork · Lyrics · Keychain     │
              └─────────────────────────────────┘
 ```
 
-`AfterglowCore` has no UI dependencies beyond AppKit image types. Each module is unit-tested on its own.
+`SleeveCore` has no UI dependencies beyond AppKit image types. Each module is unit-tested on its own.
 
 ## Folder structure
 
 ```
 Package.swift
-Resources/                      Info.plist, Afterglow.entitlements
-scripts/build-app.sh            SwiftPM product → signed Afterglow.app
+Resources/                      Info.plist, Sleeve.entitlements
+scripts/build-app.sh            SwiftPM product → signed Sleeve.app
 docs/
 Sources/
-  AfterglowCore/
+  SleeveCore/
     Models/                     Track, PlaybackSnapshot, AppSettings, GlowSettings, RGBAColor
     Settings/SettingsManager    JSON persistence in Application Support, debounced saves
     Music/
@@ -45,19 +45,19 @@ Sources/
       ArtworkColorExtractor     palette extraction (pure, tested)
     Lyrics/                     (Phase 5) LyricsService, LRC parser, LRCLIB provider
     Support/                    logging, Keychain (Phase 3b)
-  AfterglowAudio/
+  SleeveAudio/
     AudioCaptureService         backend selection, lifecycle, permission state
     ProcessTapCapture           Core Audio process tap (14.2+)
     ScreenCaptureAudioCapture   ScreenCaptureKit fallback (14.0–14.1)
     AudioSampleBuffer           lock-protected ring buffer (written on the real-time thread)
     AudioAnalyzer               vDSP FFT → level/bass/mid/treble/beat/spectrum (pure, tested)
-  AfterglowGlow/
+  SleeveGlow/
     GlowAnimator                settings + audio + time → GlowFrame (pure, tested)
     GlowGeometry                perimeter path with corner radius and notch handling
     GlowMaskRenderer            cached, low-resolution blurred alpha masks
     EdgeGlowView                4 composited layers, display-link driven
     EdgeGlowRenderer            one overlay window per selected display, screen-change handling
-  Afterglow/
+  Sleeve/
     App/                        @main, AppEnvironment (composition root), lifecycle
     DesignSystem/               tokens, Surface (glass or material), components
     MenuBar/                    MenuBarManager panel
@@ -65,22 +65,22 @@ Sources/
     Settings/                   preferences window
     System/                     LaunchAtLogin, PowerObserver, HotKeys
 Tests/
-  AfterglowCoreTests  AfterglowAudioTests  AfterglowGlowTests
+  SleeveCoreTests  SleeveAudioTests  SleeveGlowTests
 ```
 
 ## Mapping to the requested modules
 
 | Requested | Implementation |
 |---|---|
-| MusicSourceManager, NowPlayingService, SpotifyService, AppleMusicService | `AfterglowCore/Music` |
-| LyricsService | `AfterglowCore/Lyrics` (Phase 5) |
-| ArtworkColorExtractor | `AfterglowCore/Artwork` |
-| AudioCaptureService, AudioAnalyzer | `AfterglowAudio` |
-| EdgeGlowRenderer | `AfterglowGlow` |
-| FloatingPlayerManager, DesktopWidgetManager | `Afterglow/Modes` (Phase 2) |
-| ThemeManager | `Afterglow/DesignSystem` |
-| SettingsManager | `AfterglowCore/Settings` |
-| MenuBarManager | `Afterglow/MenuBar` |
+| MusicSourceManager, NowPlayingService, SpotifyService, AppleMusicService | `SleeveCore/Music` |
+| LyricsService | `SleeveCore/Lyrics` (Phase 5) |
+| ArtworkColorExtractor | `SleeveCore/Artwork` |
+| AudioCaptureService, AudioAnalyzer | `SleeveAudio` |
+| EdgeGlowRenderer | `SleeveGlow` |
+| FloatingPlayerManager, DesktopWidgetManager | `Sleeve/Modes` (Phase 2) |
+| ThemeManager | `Sleeve/DesignSystem` |
+| SettingsManager | `SleeveCore/Settings` |
+| MenuBarManager | `Sleeve/MenuBar` |
 
 ## Key decisions
 

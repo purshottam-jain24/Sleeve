@@ -1,13 +1,14 @@
 import AppKit
+import SleeveCore
 import SwiftUI
 
 @main
-struct AfterglowApp: App {
+struct SleeveApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         // Listed first so it opens at launch.
-        Window("Afterglow", id: MainWindow.id) {
+        Window("Sleeve", id: MainWindow.id) {
             MainWindow()
                 .environment(appDelegate.environment)
                 .frame(minWidth: 980, minHeight: 640)
@@ -15,6 +16,7 @@ struct AfterglowApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1240, height: 800)
         .commands {
+            SidebarCommands()
             AppCommands(environment: appDelegate.environment)
         }
 
@@ -76,7 +78,11 @@ private struct AppCommands: Commands {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let environment = AppEnvironment()
+    let environment: AppEnvironment = {
+        // Before anything reads settings or the wallpaper library from disk.
+        LegacyAppData.migrateIfNeeded()
+        return AppEnvironment()
+    }()
     /// Captured from the main window so a Dock click can reopen it after it was closed.
     var openMainWindow: (() -> Void)?
 

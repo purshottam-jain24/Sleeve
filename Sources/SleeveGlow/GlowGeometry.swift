@@ -1,4 +1,4 @@
-import AfterglowCore
+import SleeveCore
 import CoreGraphics
 
 /// Describes one display's drawable area for the glow, in the overlay's local

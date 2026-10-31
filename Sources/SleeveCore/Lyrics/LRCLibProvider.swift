@@ -22,13 +22,18 @@ public struct LRCLibProvider: LyricsProvider {
     }
 
     public func lyrics(title: String, artist: String, album: String, duration: TimeInterval?) async throws -> LyricsResult {
+        // Without an artist (e.g. a browser tab title), the exact lookup is rejected.
+        if artist.trimmingCharacters(in: .whitespaces).isEmpty {
+            return try await titleOnly(title, artistHint: "", duration: duration)
+        }
+
         // 1. Exact signature lookup (LRCLIB matches duration within ±2 s).
         var items = [
             URLQueryItem(name: "track_name", value: title),
             URLQueryItem(name: "artist_name", value: artist),
         ]
         if !album.isEmpty { items.append(URLQueryItem(name: "album_name", value: album)) }
-        if let duration { items.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded())))) }
+        if let duration, duration >= 1 { items.append(URLQueryItem(name: "duration", value: String(Int(duration.rounded())))) }
         if let record: Record = try await get("get", items), let result = Self.result(from: record) {
             return result
         }
@@ -46,7 +51,23 @@ public struct LRCLibProvider: LyricsProvider {
         if let best, let result = Self.result(from: best) {
             return result
         }
-        return .notFound
+        // 3. The "artist" may really be a label or uploader (common for web videos).
+        return try await titleOnly(title, artistHint: artist, duration: duration)
+    }
+
+    /// Searches by title alone. Only trusts a song whose artist overlaps the hint or whose
+    /// length matches; never a same-named song by someone else.
+    private func titleOnly(_ title: String, artistHint: String, duration: TimeInterval?) async throws -> LyricsResult {
+        // Nothing to check a title-only match against.
+        guard !artistHint.trimmingCharacters(in: .whitespaces).isEmpty || duration != nil else { return .notFound }
+        let cleaned = LyricsMatching.cleanTitle(title)
+        guard !cleaned.isEmpty else { return .notFound }
+        let records: [Record] = try await get("search", [URLQueryItem(name: "q", value: cleaned)]) ?? []
+        let best = LyricsMatching.unambiguous(
+            records.map { ($0, LyricsMatching.Candidate(title: $0.trackName ?? "", artist: $0.artistName ?? "", duration: $0.duration, hasSynced: $0.syncedLyrics?.isEmpty == false)) },
+            title: cleaned, artistHint: artistHint, duration: duration
+        )
+        return best.flatMap(Self.result(from:)) ?? .notFound
     }
 
     public func search(query: String) async throws -> [LyricsCandidate] {
@@ -80,12 +101,23 @@ public struct LRCLibProvider: LyricsProvider {
         components.queryItems = items
         var request = URLRequest(url: components.url!, timeoutInterval: 12)
         // LRCLIB asks clients to identify themselves.
-        request.setValue("Afterglow/0.2 (macOS music companion)", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await session.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status == 404 { return nil }
-        guard (200..<300).contains(status) else { throw URLError(.badServerResponse) }
-        return try JSONDecoder().decode(T.self, from: data)
+        request.setValue("Sleeve/0.2 (macOS music companion)", forHTTPHeaderField: "User-Agent")
+        let backoff: [Double] = [1.5, 4]
+        for attempt in 0...backoff.count {
+            let (data, response) = try await session.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            switch status {
+            case 200..<300: return try JSONDecoder().decode(T.self, from: data)
+            // 400 means LRCLIB rejected the signature (e.g. a missing field): nothing to find.
+            case 400, 404: return nil
+            // LRCLIB answers 503 "server busy" in bursts; short retries usually succeed.
+            case 429, 500...599:
+                guard attempt < backoff.count else { throw URLError(.resourceUnavailable) }
+                try await Task.sleep(for: .seconds(backoff[attempt]))
+            default: throw URLError(.badServerResponse)
+            }
+        }
+        throw URLError(.badServerResponse)
     }
 }
 
@@ -128,21 +160,56 @@ public enum LyricsMatching {
             .filter { $0.isLetter || $0.isNumber }
     }
 
-    /// Picks the most plausible candidate; rejects anything whose duration is far off.
+    /// Words that identify an artist ("Hamza Malik x Zain Zohaib" → hamza, malik, zain, zohaib).
+    static func artistTokens(_ artist: String) -> Set<String> {
+        let folded = artist.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let ignored: Set<String> = ["the", "and", "feat", "with", "music", "official", "records", "topic", "vevo"]
+        return Set(folded.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 && !ignored.contains($0) })
+    }
+
+    /// Same artist, or a shared name (features, collaborations, "Artist - Topic").
+    public static func artistMatches(_ candidate: String, _ wanted: String) -> Bool {
+        let a = normalise(candidate), b = normalise(wanted)
+        guard !a.isEmpty, !b.isEmpty else { return false }
+        if a == b || a.contains(b) || b.contains(a) { return true }
+        return !artistTokens(candidate).isDisjoint(with: artistTokens(wanted))
+    }
+
+    /// Title-only matching (the artist we have may be a channel or label): an exact-title
+    /// candidate whose artist overlaps the hint, or whose length matches within 3 s.
+    public static func unambiguous<T>(_ candidates: [(T, Candidate)], title: String, artistHint: String, duration: TimeInterval?) -> T? {
+        let wantTitle = normalise(cleanTitle(title))
+        let trusted = candidates.filter { _, c in
+            guard normalise(cleanTitle(c.title)) == wantTitle else { return false }
+            if artistMatches(c.artist, artistHint) { return true }
+            if let duration, let d = c.duration { return abs(d - duration) <= 3 }
+            return false
+        }
+        // Several different artists still fit: don't guess.
+        let artists = Set(trusted.map { normalise(primaryArtist($0.1.artist)) })
+        guard artists.count == 1 else { return nil }
+        return best(trusted, title: title, artist: trusted[0].1.artist, duration: duration)
+    }
+
+    /// Picks the most plausible candidate. A candidate must have the right title and either
+    /// the right artist or (when both lengths are known) the same length; anything whose
+    /// length is far off is rejected.
     public static func best<T>(_ candidates: [(T, Candidate)], title: String, artist: String, duration: TimeInterval?) -> T? {
         let wantTitle = normalise(cleanTitle(title))
-        let wantArtist = normalise(primaryArtist(artist))
         let scored = candidates.compactMap { item, c -> (T, Double)? in
             var score = 0.0
+            var lengthMatches = false
             if let duration, let d = c.duration {
                 let delta = abs(d - duration)
                 if delta > 8 { return nil }
+                lengthMatches = delta <= 2
                 score += 3 - delta / 3
             }
             let title = normalise(cleanTitle(c.title))
             if title == wantTitle { score += 4 } else if title.contains(wantTitle) || wantTitle.contains(title) { score += 2 } else { return nil }
-            let artist = normalise(c.artist)
-            if artist.contains(wantArtist) || wantArtist.contains(artist) { score += 3 }
+            let sameArtist = artistMatches(c.artist, artist)
+            guard sameArtist || lengthMatches else { return nil }
+            if sameArtist { score += 3 }
             if c.hasSynced { score += 2 }
             return (item, score)
         }

@@ -1,5 +1,5 @@
-import AfterglowAudio
-import AfterglowCore
+import SleeveAudio
+import SleeveCore
 import AppKit
 import QuartzCore
 
@@ -113,7 +113,7 @@ public final class GlowPreviewNSView: NSView {
     }
 
     /// Debug snapshot tours capture while the screen may be locked.
-    private static let ignoresOcclusion = ProcessInfo.processInfo.environment["AFTERGLOW_SNAPSHOT_DIR"] != nil
+    private static let ignoresOcclusion = ProcessInfo.processInfo.environment["SLEEVE_SNAPSHOT_DIR"] != nil
 
     @objc private func tick(_ link: CADisplayLink) {
         guard let configuration, let window, isOnScreen(window) else { return }
@@ -121,15 +121,19 @@ public final class GlowPreviewNSView: NSView {
         let dt = lastTimestamp.map { min(now - $0, 0.1) } ?? 1.0 / 60
         lastTimestamp = now
 
-        // Always advance the shared analyzer so a newly started song is noticed.
-        let liveFeatures = stream.features(at: now)
-        let live = stream.hasLiveSignal(at: now)
+        // Always advance the shared analyzer so a newly started song is noticed. Without
+        // "Follow the beat", previews show the same gentle motion the real glow uses.
+        let followBeat = configuration.settings.followBeat
+        let liveFeatures = followBeat ? stream.features(at: now) : .silent
+        let live = followBeat && stream.hasLiveSignal(at: now)
         let features: AudioFeatures
+        demoTime += dt
         if live {
             features = liveFeatures
-        } else {
-            demoTime += dt
+        } else if followBeat {
             features = DemoSignal.features(at: demoTime)
+        } else {
+            features = AmbientMotion.features(at: demoTime)
         }
         if live != showingLive {
             showingLive = live

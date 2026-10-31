@@ -1,11 +1,13 @@
-import AfterglowAudio
-import AfterglowCore
-import AfterglowGlow
+import SleeveAudio
+import SleeveCore
+import SleeveGlow
+import SleeveWallpaper
 import AppKit
 import Observation
+import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case nowPlaying, lyrics, glow, sources, settings
+    case nowPlaying, lyrics, glow, wallpaper, sources, settings
 
     var id: String { rawValue }
 
@@ -14,6 +16,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .nowPlaying: "Now Playing"
         case .lyrics: "Lyrics"
         case .glow: "Edge Glow"
+        case .wallpaper: "Wallpaper"
         case .sources: "Music Sources"
         case .settings: "Settings"
         }
@@ -24,6 +27,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .nowPlaying: "play.circle"
         case .lyrics: "quote.bubble"
         case .glow: "sparkles"
+        case .wallpaper: "photo.on.rectangle"
         case .sources: "music.note.list"
         case .settings: "gearshape"
         }
@@ -41,7 +45,10 @@ final class AppEnvironment {
     let stream: AudioFeatureStream
     let lyrics: LyricsService
     let launchAtLogin = LaunchAtLogin()
+    let wallpaper: WallpaperController
     var section: AppSection = .nowPlaying
+    /// Sidebar shown or hidden (View › Show Sidebar, ⌃⌘S, or the toolbar button).
+    var columnVisibility: NavigationSplitViewVisibility = .all
 
     @ObservationIgnored let glow: EdgeGlowRenderer
     private(set) var isAsleep = false
@@ -49,16 +56,24 @@ final class AppEnvironment {
 
     init(settings: SettingsManager = SettingsManager()) {
         self.settings = settings
-        let providers: [any MusicProvider] = [SpotifyService(), AppleMusicService()]
+        let providers: [any MusicProvider] = [SpotifyService(), AppleMusicService(), BrowserMediaService()]
         sources = MusicSourceManager(providers: providers, settings: settings.settings.sources)
         nowPlaying = NowPlayingService(sources: sources)
         audio = AudioCaptureService()
         stream = AudioFeatureStream(audio: audio)
         glow = EdgeGlowRenderer(stream: stream)
         lyrics = LyricsService()
+        wallpaper = WallpaperController(root: ProcessInfo.processInfo.environment["SLEEVE_WALLPAPER_ROOT"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) } ?? WallpaperLibrary.defaultRoot)
 
         observePower()
         bind()
+        wallpaper.onActiveVideoChange = { [weak self] id in
+            guard let self, self.settings.settings.wallpaper.activeVideoID != id else { return }
+            self.settings.settings.wallpaper.activeVideoID = id
+        }
+        // Resumes only a video the user chose before; otherwise does nothing.
+        wallpaper.start(activeVideoID: settings.settings.wallpaper.activeVideoID)
     }
 
     /// Re-applies settings and playback state to the services whenever anything they
@@ -88,15 +103,38 @@ final class AppEnvironment {
             glow.update(settings: current.glow, palette: palette, isPlaying: playing)
             // Capture only when something will use it: the on-screen glow while music plays
             // (or always, if the user opted into all apps' audio), or a visible preview.
+            // System audio is captured only with "Follow the beat" on, and then only when
+            // something will use it: the on-screen glow while music plays (or always, if
+            // the user opted into all apps' audio), or a visible preview.
             let listening = playing || current.glow.reactToAllAudio
             let glowNeedsAudio = current.glow.isEnabled && style.preset.usesAudio && listening
-            audio.setActive(!asleep && (glowNeedsAudio || previews > 0))
+            audio.setActive(!asleep && current.glow.followBeat && (glowNeedsAudio || previews > 0))
 
             if current.lyrics.isEnabled {
                 lyrics.update(for: track)
             } else {
                 lyrics.clear()
             }
+
+            wallpaper.configure(allDisplays: current.wallpaper.allDisplays, pauseOnBattery: current.wallpaper.pauseOnBattery)
+            let artwork = nowPlaying.artwork
+            let snapshot = nowPlaying.snapshot
+            let card = track.map {
+                NowPlayingCard(title: $0.title, artist: $0.artist, album: $0.album, duration: $0.duration,
+                               position: snapshot?.position, positionDate: snapshot?.positionTimestamp ?? Date(), isPlaying: playing,
+                               playerName: snapshot?.displayPlayerName)
+            }
+            // Keyed by the image too: right after a song change the previous cover is still
+            // loaded, and the new one must replace it when it arrives.
+            let artworkKey = track.flatMap { t in artwork.map { "\(t.cacheKey)#\(ObjectIdentifier($0).hashValue)" } }
+            if current.wallpaper.artworkOnLockScreen, playing, let artwork, let artworkKey {
+                wallpaper.showArtwork(artwork, key: artworkKey)
+            } else {
+                // Short pauses and gaps between songs keep the artwork; turning the switch
+                // off removes it at once.
+                wallpaper.hideArtwork(after: current.wallpaper.artworkOnLockScreen ? .seconds(20) : .zero)
+            }
+            wallpaper.nowPlayingChanged(card, artwork: artwork, artworkKey: artworkKey)
         } onChange: { [weak self] in
             Task { @MainActor in self?.bind() }
         }
@@ -130,6 +168,7 @@ final class AppEnvironment {
 
     func shutdown() {
         audio.setActive(false)
+        wallpaper.prepareForQuit()
         settings.saveNow()
     }
 }

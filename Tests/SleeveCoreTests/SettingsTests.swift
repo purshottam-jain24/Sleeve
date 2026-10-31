@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import AfterglowCore
+@testable import SleeveCore
 
 struct SettingsTests {
     @Test func roundTripsAllFields() throws {
@@ -9,7 +9,7 @@ struct SettingsTests {
         settings.glow.style.preset = .spectrum
         settings.glow.displays = .specific([1, 2])
         settings.glow.customPresets = [CustomGlowPreset(name: "Night", style: GlowStyle())]
-        settings.sources.priority = [.appleMusic, .spotify]
+        settings.sources.priority = [.appleMusic, .spotify, .web]
         let data = try JSONEncoder().encode(settings)
         #expect(try JSONDecoder().decode(AppSettings.self, from: data) == settings)
     }
@@ -28,7 +28,7 @@ struct SettingsTests {
     @Test func newSourcesAreAppendedToSavedPriority() throws {
         let json = #"{"priority": ["appleMusic"]}"#
         let decoded = try JSONDecoder().decode(SourceSettings.self, from: Data(json.utf8))
-        #expect(decoded.priority == [.appleMusic, .spotify])
+        #expect(decoded.priority == [.appleMusic, .spotify, .web])
     }
 
     @MainActor @Test func persistsToDisk() async throws {

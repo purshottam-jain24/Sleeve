@@ -1,4 +1,4 @@
-# Afterglow — Implementation Roadmap
+# Sleeve — Implementation Roadmap
 
 Each phase ends with `swift build`, `swift test`, and a manual check of the bundled app. Status markers are only updated once that check passes.
 
@@ -37,7 +37,7 @@ Each phase ends with `swift build`, `swift test`, and a manual check of the bund
 
 ## Energy budget (measured, Apple Silicon, release build)
 
-| State | CPU (Afterglow process) |
+| State | CPU (Sleeve process) |
 |---|---|
 | Window open, glow off | ≈0% |
 | Glow on, nothing playing (any preset, any idle behaviour) | ≈0%: frame loop stops; idle breathing runs as a Core Animation animation |

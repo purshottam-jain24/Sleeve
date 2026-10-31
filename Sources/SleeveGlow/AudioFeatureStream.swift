@@ -1,4 +1,4 @@
-import AfterglowAudio
+import SleeveAudio
 import Foundation
 import Observation
 import QuartzCore
@@ -81,5 +81,24 @@ public enum DemoSignal {
             beat: phase < 0.06 ? 1 : kick,
             spectrum: spectrum, isSilent: false
         )
+    }
+}
+
+/// Slow, beat-free motion used while music plays and "Follow the beat" is off, so
+/// audio-driven presets still breathe and travel without capturing any sound. It has no
+/// beats or transients, so it never pretends to be in sync with the song.
+public enum AmbientMotion {
+    public static func features(at time: Double) -> AudioFeatures {
+        func wave(_ rate: Double, _ offset: Double) -> Float { Float(0.5 + 0.5 * sin(time * rate + offset)) }
+        let bass = 0.35 + 0.3 * wave(0.45, 0)
+        let mid = 0.4 + 0.25 * wave(0.31, 1.7)
+        let treble = 0.3 + 0.25 * wave(0.23, 3.1)
+        let bands = AudioFeatures.bandCount
+        let spectrum = (0..<bands).map { i -> Float in
+            let x = Double(i) / Double(bands - 1)
+            return Float(0.35 + 0.25 * sin(time * 0.6 - x * 5) + 0.1 * sin(time * 0.37 + x * 9)) * Float(1 - 0.4 * x)
+        }
+        return AudioFeatures(level: 0.45 + 0.2 * wave(0.38, 0.9), bass: bass, mid: mid, treble: treble,
+                             beat: 0, spectrum: spectrum, isSilent: false)
     }
 }

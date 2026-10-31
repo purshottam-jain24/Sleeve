@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import AfterglowAudio
+@testable import SleeveAudio
 
 struct AudioAnalyzerTests {
     let rate = 48_000.0

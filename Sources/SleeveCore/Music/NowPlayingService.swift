@@ -42,6 +42,17 @@ public final class NowPlayingService {
         }
     }
 
+    #if DEBUG
+    /// Layout snapshots only: shows a fixed track without a real player.
+    public func debugShow(_ snapshot: PlaybackSnapshot, artwork image: NSImage) {
+        artworkTask?.cancel()
+        self.snapshot = snapshot
+        artworkKey = "debug:\(snapshot.track?.cacheKey ?? "")"
+        artwork = image
+        palette = image.cgImage(forProposedRect: nil, context: nil, hints: nil).flatMap { extractor.palette(from: $0) } ?? .fallback
+    }
+    #endif
+
     private func apply(_ next: PlaybackSnapshot?) {
         snapshot = next
         updateArtwork(for: next)

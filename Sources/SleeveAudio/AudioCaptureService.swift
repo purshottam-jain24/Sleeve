@@ -105,7 +105,7 @@ public final class AudioCaptureService {
     }
 
     private func makeBackend() -> any AudioCaptureBackend {
-        let forceSCK = ProcessInfo.processInfo.environment["AFTERGLOW_FORCE_SCREENCAPTUREKIT"] == "1"
+        let forceSCK = ProcessInfo.processInfo.environment["SLEEVE_FORCE_SCREENCAPTUREKIT"] == "1"
         if #available(macOS 14.2, *), !forceSCK {
             return ProcessTapCapture()
         }

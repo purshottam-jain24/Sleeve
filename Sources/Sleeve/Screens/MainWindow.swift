@@ -1,4 +1,4 @@
-import AfterglowCore
+import SleeveCore
 import SwiftUI
 
 struct MainWindow: View {
@@ -6,18 +6,29 @@ struct MainWindow: View {
 
     @Environment(AppEnvironment.self) private var env
     @Environment(\.openWindow) private var openWindow
+    @State private var isFullScreen = false
 
     var body: some View {
         @Bindable var env = env
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $env.columnVisibility) {
             Sidebar(selection: $env.section)
                 .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 280)
         } detail: {
-            detail
+            ZStack {
+                detail
+                    .id(env.section)
+                    .transition(.opacity)
+            }
+            .animation(.easeOut(duration: 0.2), value: env.section)
                 .toolbarBackground(.hidden, for: .windowToolbar)
                 .navigationTitle("")
         }
+        // In full screen there is no title bar strip at all: content runs edge to edge.
+        // The sidebar stays reachable with ⌃⌘S (View › Toggle Sidebar).
+        .toolbar(isFullScreen ? .hidden : .automatic, for: .windowToolbar)
+        .background(FullScreenObserver(isFullScreen: $isFullScreen))
         .preferredColorScheme(.dark)
+        .tint(DS.Palette.accent)
         .onAppear {
             (NSApp.delegate as? AppDelegate)?.openMainWindow = { openWindow(id: MainWindow.id) }
         }
@@ -29,6 +40,7 @@ struct MainWindow: View {
         case .lyrics: LyricsScreen()
         case .glow: GlowStudioScreen()
         case .sources: SourcesScreen()
+        case .wallpaper: WallpaperScreen()
         case .settings: SettingsScreen()
         }
     }
@@ -42,7 +54,7 @@ private struct Sidebar: View {
         VStack(spacing: 0) {
             List(selection: Binding(get: { selection }, set: { if let s = $0 { selection = s } })) {
                 Section {
-                    ForEach([AppSection.nowPlaying, .lyrics, .glow]) { section in
+                    ForEach([AppSection.nowPlaying, .lyrics, .glow, .wallpaper]) { section in
                         row(section)
                     }
                 }
@@ -63,13 +75,16 @@ private struct Sidebar: View {
             HStack {
                 Text(section.title)
                 Spacer()
-                if section == .glow, env.settings.settings.glow.isEnabled {
+                if section == .glow && env.settings.settings.glow.isEnabled || section == .wallpaper && env.wallpaper.activeVideo != nil {
                     Circle().fill(.green).frame(width: 6, height: 6)
-                        .accessibilityLabel("Edge Glow on")
+                        .accessibilityLabel("\(section.title) on")
                 }
             }
         } icon: {
+            // Monochrome glyphs: colour in this app comes from the music, not the chrome.
             Image(systemName: section.symbol)
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(selection == section ? DS.Palette.textPrimary : DS.Palette.textSecondary)
         }
         .tag(section)
     }
@@ -103,7 +118,7 @@ private struct SidebarNowPlaying: View {
                 .accessibilityLabel(snapshot.state == .playing ? "Pause" : "Play")
             }
             .padding(DS.Space.s2)
-            .background(.white.opacity(0.06), in: .rect(cornerRadius: DS.Radius.sm))
+            .cardSurface(cornerRadius: DS.Radius.md, shadow: false)
             .contentShape(.rect)
             .onTapGesture { env.section = .nowPlaying }
         }

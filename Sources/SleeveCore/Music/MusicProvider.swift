@@ -29,6 +29,8 @@ public protocol MusicProvider: AnyObject {
     func artworkData(for track: Track) async -> Data?
     /// Clears a sticky permission error and tries again.
     func retryPermissions() async
+    /// Brings the playing app (and tab, for browsers) to the front.
+    func revealPlayer()
 }
 
 /// Shared plumbing for players that post distributed notifications and accept Apple Events.
@@ -66,11 +68,11 @@ public class ScriptablePlayerProvider: MusicProvider {
     // MARK: Lifecycle
 
     public var isInstalled: Bool {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: source.bundleIdentifier) != nil
+        source.bundleIdentifier.flatMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) } != nil
     }
 
     public var isRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: source.bundleIdentifier).isEmpty
+        source.bundleIdentifier.map { !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty } ?? false
     }
 
     public func start() {
@@ -129,6 +131,12 @@ public class ScriptablePlayerProvider: MusicProvider {
     public func retryPermissions() async {
         automationBlocked = false
         await refresh()
+    }
+
+    public func revealPlayer() {
+        guard let id = source.bundleIdentifier,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
     // MARK: Internals

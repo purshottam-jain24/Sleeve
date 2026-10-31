@@ -4,6 +4,8 @@ import Foundation
 public enum MusicSourceID: String, Codable, Sendable, CaseIterable, Identifiable {
     case spotify
     case appleMusic
+    /// Media playing in a web browser (YouTube, YouTube Music, SoundCloud, …).
+    case web
 
     public var id: String { rawValue }
 
@@ -11,13 +13,16 @@ public enum MusicSourceID: String, Codable, Sendable, CaseIterable, Identifiable
         switch self {
         case .spotify: "Spotify"
         case .appleMusic: "Music"
+        case .web: "Web"
         }
     }
 
-    public var bundleIdentifier: String {
+    /// The app behind this source; `nil` for sources spanning several apps (web).
+    public var bundleIdentifier: String? {
         switch self {
         case .spotify: "com.spotify.client"
         case .appleMusic: "com.apple.Music"
+        case .web: nil
         }
     }
 }
@@ -71,6 +76,14 @@ public struct PlaybackSnapshot: Sendable, Equatable {
     public var volume: Double?
     /// `true` when produced by a full scripted query rather than a lightweight notification.
     public var isEnriched: Bool
+    /// The concrete app playing, when it differs from the source (e.g. "Google Chrome").
+    public var playerName: String?
+    public var playerBundleIdentifier: String?
+    /// Whether transport commands work for this snapshot.
+    public var supportsControl: Bool
+
+    public var displayPlayerName: String { playerName ?? source.displayName }
+    public var displayPlayerBundleIdentifier: String? { playerBundleIdentifier ?? source.bundleIdentifier }
 
     public init(
         source: MusicSourceID,
@@ -79,7 +92,10 @@ public struct PlaybackSnapshot: Sendable, Equatable {
         position: TimeInterval? = nil,
         positionTimestamp: Date = Date(),
         volume: Double? = nil,
-        isEnriched: Bool = false
+        isEnriched: Bool = false,
+        playerName: String? = nil,
+        playerBundleIdentifier: String? = nil,
+        supportsControl: Bool = true
     ) {
         self.source = source
         self.state = state
@@ -88,6 +104,9 @@ public struct PlaybackSnapshot: Sendable, Equatable {
         self.positionTimestamp = positionTimestamp
         self.volume = volume
         self.isEnriched = isEnriched
+        self.playerName = playerName
+        self.playerBundleIdentifier = playerBundleIdentifier
+        self.supportsControl = supportsControl
     }
 
     /// Interpolated playback position at `date`, clamped to the track duration.

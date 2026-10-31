@@ -1,4 +1,4 @@
-# Afterglow — Technical Feasibility Report
+# Sleeve — Technical Feasibility Report
 
 Verified on: Apple Silicon (arm64), macOS 27.2, Xcode 27.2, macOS SDK 27.2, Swift 6.4.2.
 Deployment target: **macOS 14.0**.

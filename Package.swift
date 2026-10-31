@@ -2,21 +2,24 @@
 import PackageDescription
 
 let package = Package(
-    name: "Afterglow",
+    name: "Sleeve",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Afterglow", targets: ["Afterglow"])
+        .executable(name: "Sleeve", targets: ["Sleeve"])
     ],
     targets: [
-        .target(name: "AfterglowCore"),
-        .target(name: "AfterglowAudio"),
-        .target(name: "AfterglowGlow", dependencies: ["AfterglowCore", "AfterglowAudio"]),
+        .target(name: "SleeveCore"),
+        .target(name: "SleeveAudio"),
+        .target(name: "SleeveGlow", dependencies: ["SleeveCore", "SleeveAudio"]),
+        // Live video wallpaper and lock-screen artwork (merged from LiveWallpaper).
+        .target(name: "SleeveWallpaper"),
         .executableTarget(
-            name: "Afterglow",
-            dependencies: ["AfterglowCore", "AfterglowAudio", "AfterglowGlow"]
+            name: "Sleeve",
+            dependencies: ["SleeveCore", "SleeveAudio", "SleeveGlow", "SleeveWallpaper"]
         ),
-        .testTarget(name: "AfterglowCoreTests", dependencies: ["AfterglowCore"]),
-        .testTarget(name: "AfterglowAudioTests", dependencies: ["AfterglowAudio"]),
-        .testTarget(name: "AfterglowGlowTests", dependencies: ["AfterglowGlow"]),
+        .testTarget(name: "SleeveCoreTests", dependencies: ["SleeveCore"]),
+        .testTarget(name: "SleeveAudioTests", dependencies: ["SleeveAudio"]),
+        .testTarget(name: "SleeveGlowTests", dependencies: ["SleeveGlow"]),
+        .testTarget(name: "SleeveWallpaperTests", dependencies: ["SleeveWallpaper"]),
     ]
 )

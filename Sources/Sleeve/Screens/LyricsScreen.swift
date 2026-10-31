@@ -1,4 +1,4 @@
-import AfterglowCore
+import SleeveCore
 import SwiftUI
 
 struct LyricsScreen: View {
@@ -23,6 +23,7 @@ struct LyricsScreen: View {
                         .padding(.horizontal, 40)
                         .padding(.top, 20)
                     LyricsPanel(fontSize: settings.fontSize, compact: false)
+                        .padding(.top, DS.Space.s4)
                         .padding(.horizontal, settings.style == .glow ? 40 : 96)
                         .frame(maxWidth: 1100)
                     if let attribution {
@@ -55,8 +56,8 @@ private struct LyricsToolbar: View {
                 ArtworkView(image: nowPlaying.artwork, palette: nowPlaying.palette, cornerRadius: DS.Radius.xs, identity: track.cacheKey)
                     .frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(track.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                    Text(track.artist).font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    Text(track.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(DS.Palette.textPrimary).lineLimit(1)
+                    Text(track.artist).font(.system(size: 12)).foregroundStyle(DS.Palette.textSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: DS.Space.s4)

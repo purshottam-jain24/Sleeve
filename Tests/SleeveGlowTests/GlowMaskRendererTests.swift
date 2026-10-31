@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import AfterglowGlow
+@testable import SleeveGlow
 
 struct GlowMaskRendererTests {
     /// Regression: an A8/nil-colour-space render silently returned nil, so only the

@@ -6,13 +6,16 @@ public enum MusicSourceError: Error, Sendable, Equatable {
     case automationDenied
     case timedOut
     case scriptFailed(code: Int, message: String)
+    /// The browser blocks reading pages from Apple Events (basic details only).
+    case browserScriptingOff(String)
 
     public var userMessage: String {
         switch self {
         case .notRunning: "The player is not running."
-        case .automationDenied: "Afterglow isn't allowed to control this player. Allow it in System Settings › Privacy & Security › Automation."
+        case .automationDenied: "Sleeve isn't allowed to control this player. Allow it in System Settings › Privacy & Security › Automation."
         case .timedOut: "The player did not respond in time."
         case .scriptFailed(_, let message): message
+        case .browserScriptingOff(let browser): "Turn on “Allow JavaScript from Apple Events” in \(browser) for artist, progress and playback controls."
         }
     }
 }
@@ -24,7 +27,7 @@ public enum MusicSourceError: Error, Sendable, Equatable {
 final class AppleScriptRunner: @unchecked Sendable {
     static let shared = AppleScriptRunner()
 
-    private let queue = DispatchQueue(label: "app.afterglow.applescript", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "app.sleeve.applescript", qos: .userInitiated)
     private var compiled: [String: NSAppleScript] = [:]
 
     /// - Parameter cache: keep the compiled script for reuse. Use `false` for scripts

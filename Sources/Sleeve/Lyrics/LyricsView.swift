@@ -1,4 +1,4 @@
-import AfterglowCore
+import SleeveCore
 import SwiftUI
 
 /// Time-synced lyrics in one of three styles. Lines are clickable to seek.
@@ -82,7 +82,8 @@ private struct ScrollingLyrics: View {
         GeometryReader { geo in
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: fontSize * 0.75) {
+                    // Non-lazy so scroll targets have exact positions (a song is < 200 lines).
+                    VStack(alignment: .leading, spacing: fontSize * 0.75) {
                         Color.clear.frame(height: geo.size.height * 0.32)
                         ForEach(document.synced) { line in
                             LyricRow(
@@ -114,6 +115,11 @@ private struct ScrollingLyrics: View {
                     withAnimation(.spring(response: 0.7, dampingFraction: 0.9)) {
                         proxy.scrollTo(index, anchor: UnitPoint(x: 0, y: 0.32))
                     }
+                }
+                // Re-centre after resizes (entering full screen, window resizing).
+                .onChange(of: geo.size) {
+                    guard let activeIndex else { return }
+                    proxy.scrollTo(activeIndex, anchor: UnitPoint(x: 0, y: 0.32))
                 }
             }
         }
@@ -158,7 +164,8 @@ private struct LyricRow: View {
                 }
             } else {
                 Text(line.text)
-                    .font(.system(size: fontSize, weight: .bold))
+                    .font(.system(size: fontSize, weight: .semibold))
+                    .tracking(-fontSize * 0.018)
                     .foregroundStyle(.white.opacity(opacity))
             }
             if let translation, !line.isGap {
@@ -184,8 +191,8 @@ private struct LyricRow: View {
 
     private var opacity: Double {
         if isActive { return 1 }
-        if hovering { return 0.75 }
-        return isPast ? 0.28 : 0.38
+        if hovering { return 0.7 }
+        return isPast ? 0.22 : 0.32
     }
 
     /// Word-timed when the source has word timings; otherwise spread across the line.
@@ -212,7 +219,7 @@ private struct KaraokeText: View {
     var palette: ArtworkPalette
 
     var body: some View {
-        let base = Text(text).font(.system(size: fontSize, weight: .bold))
+        let base = Text(text).font(.system(size: fontSize, weight: .semibold)).tracking(-fontSize * 0.018)
         base
             .foregroundStyle(.white.opacity(0.4))
             .overlay(alignment: .leading) {

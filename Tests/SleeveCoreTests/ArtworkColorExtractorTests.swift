@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import AfterglowCore
+@testable import SleeveCore
 
 struct ArtworkColorExtractorTests {
     func image(_ draw: (CGContext) -> Void) -> CGImage {

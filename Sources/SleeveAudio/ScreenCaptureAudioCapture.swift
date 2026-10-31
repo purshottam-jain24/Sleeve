@@ -13,7 +13,7 @@ final class ScreenCaptureAudioCapture: NSObject, AudioCaptureBackend, SCStreamOu
     private let lock = NSLock()
     private var stream: SCStream?
     private var buffer: AudioSampleBuffer?
-    private let queue = DispatchQueue(label: "app.afterglow.audio.sck", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "app.sleeve.audio.sck", qos: .userInteractive)
 
     func start(into buffer: AudioSampleBuffer) async throws {
         self.buffer = buffer

@@ -1,5 +1,5 @@
-import AfterglowCore
-import AfterglowGlow
+import SleeveCore
+import SleeveGlow
 import SwiftUI
 
 /// SwiftUI wrapper around the engine-backed preview.

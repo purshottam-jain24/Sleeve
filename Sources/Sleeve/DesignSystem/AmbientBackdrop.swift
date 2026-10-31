@@ -1,4 +1,4 @@
-import AfterglowCore
+import SleeveCore
 import CoreImage
 import SwiftUI
 
@@ -15,30 +15,44 @@ struct AmbientBackdrop: View {
 
     var body: some View {
         ZStack {
-            palette.background.color
+            DS.Palette.base
+            palette.background.color.opacity(0.55)
 
             if let artwork, let blurred = BackdropBlur.image(for: artwork, key: identity) {
                 // A tiny pre-blurred bitmap scaled up is visually identical to a live
-                // 90 pt blur and costs nothing per frame.
-                Image(decorative: blurred, scale: 1)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fill)
-                    .opacity(0.55 * intensity)
-                    .scaleEffect(1.25)
-                    .id(identity)
-                    .transition(.opacity)
+                // 90 pt blur and costs nothing per frame. It lives in an overlay so its
+                // fill size never becomes the backdrop's size: a wide video thumbnail
+                // would otherwise widen the whole screen and push content under the sidebar.
+                Color.clear.overlay {
+                    Image(decorative: blurred, scale: 1)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fill)
+                        .scaleEffect(1.25)
+                }
+                .opacity(0.5 * intensity)
+                .id(identity)
+                .transition(.opacity)
             }
 
             DriftingLights(palette: palette, animated: !reduceMotion)
-                .opacity(0.75 * intensity)
+                .opacity(0.45 * intensity)
                 .blendMode(.plusLighter)
 
+            // Deep, even falloff: colour lives in the upper half, the bottom settles to
+            // near-black so controls and lyrics read cleanly.
             LinearGradient(
-                colors: [.black.opacity(0.15), .black.opacity(0.35), .black.opacity(0.7)],
+                stops: [
+                    .init(color: .black.opacity(0.2), location: 0),
+                    .init(color: .black.opacity(0.4), location: 0.5),
+                    .init(color: .black.opacity(0.78), location: 1),
+                ],
                 startPoint: .top, endPoint: .bottom
             )
-            RadialGradient(colors: [.clear, .black.opacity(0.45)], center: .center, startRadius: 200, endRadius: 900)
+            RadialGradient(colors: [.clear, .black.opacity(0.5)], center: .center, startRadius: 240, endRadius: 1000)
+
+            // Fine static grain keeps large dark gradients from banding and looking flat.
+            FilmGrain().opacity(0.5)
         }
         .animation(.easeInOut(duration: 1.2), value: identity)
         .animation(.easeInOut(duration: 1.2), value: palette)
@@ -46,6 +60,36 @@ struct AmbientBackdrop: View {
         .ignoresSafeArea()
         .accessibilityHidden(true)
     }
+}
+
+/// A tiled, static monochrome noise texture, generated once.
+private struct FilmGrain: View {
+    var body: some View {
+        if let tile = FilmGrain.tile {
+            Image(decorative: tile, scale: 2)
+                .resizable(resizingMode: .tile)
+                .blendMode(.overlay)
+                .allowsHitTesting(false)
+        }
+    }
+
+    @MainActor static let tile: CGImage? = {
+        let side = 192
+        var rng = SystemRandomNumberGenerator()
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        for i in 0..<(side * side) {
+            // Premultiplied: grey 96…160 at alpha 40/255.
+            let v = UInt8(Int.random(in: 96...160, using: &rng) * 40 / 255)
+            pixels[i * 4] = v
+            pixels[i * 4 + 1] = v
+            pixels[i * 4 + 2] = v
+            pixels[i * 4 + 3] = 40
+        }
+        return pixels.withUnsafeMutableBytes { buffer in
+            CGContext(data: buffer.baseAddress, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        }
+    }()
 }
 
 /// Pre-blurs artwork once per track: downscale to 40 px, blur, boost saturation.

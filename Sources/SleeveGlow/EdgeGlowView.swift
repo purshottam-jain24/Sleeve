@@ -1,4 +1,4 @@
-import AfterglowCore
+import SleeveCore
 import AppKit
 import QuartzCore
 

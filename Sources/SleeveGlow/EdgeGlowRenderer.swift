@@ -1,5 +1,5 @@
-import AfterglowAudio
-import AfterglowCore
+import SleeveAudio
+import SleeveCore
 import AppKit
 import QuartzCore
 
@@ -182,6 +182,7 @@ public final class EdgeGlowRenderer: NSObject {
         guard settings.isEnabled else { return }
         wakeTimer?.invalidate()
         wakeTimer = nil
+        setOverlaysVisible(true)
         if displayLink == nil { recreateDisplayLink() }
         displayLink?.isPaused = false
         lastTimestamp = nil
@@ -193,7 +194,14 @@ public final class EdgeGlowRenderer: NSObject {
         lastTimestamp = now
 
         let style = settings.style
-        let features = style.preset.usesAudio ? stream.features(at: now) : .silent
+        // Without "Follow the beat" no audio is captured; music still gets gentle motion.
+        let features: AudioFeatures = if !style.preset.usesAudio {
+            .silent
+        } else if settings.followBeat {
+            stream.features(at: now)
+        } else {
+            isPlaying ? AmbientMotion.features(at: now) : .silent
+        }
 
         let colors = style.useArtworkColors
             ? palette.glowColors
@@ -232,10 +240,19 @@ public final class EdgeGlowRenderer: NSObject {
         // Fully idle and visually settled: stop the loop. If audio capture is running,
         // check twice a second for sound so non-detected players can wake the glow.
         let quiet = features.isSilent && features.level < 0.001 && !isPlaying
-        if !frame.needsContinuousUpdates || (quiet && settings.idleBehavior == .hide && frame.bandOpacity == 0) {
+        let fullyHidden = frame.outerOpacity + frame.mediumOpacity + frame.bandOpacity + frame.highlightOpacity < 0.001
+        if !frame.needsContinuousUpdates || (quiet && settings.idleBehavior == .hide && fullyHidden) {
             link.isPaused = true
             lastTimestamp = nil
+            // Invisible overlays still cost compositing; take them off screen until needed.
+            if fullyHidden { setOverlaysVisible(false) }
             scheduleAudioWakeCheck()
+        }
+    }
+
+    private func setOverlaysVisible(_ visible: Bool) {
+        for overlay in overlays.values where overlay.window.isVisible != visible {
+            if visible { overlay.window.orderFrontRegardless() } else { overlay.window.orderOut(nil) }
         }
     }
 

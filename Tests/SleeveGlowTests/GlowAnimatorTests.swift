@@ -1,8 +1,8 @@
-import AfterglowAudio
-import AfterglowCore
+import SleeveAudio
+import SleeveCore
 import CoreGraphics
 import Testing
-@testable import AfterglowGlow
+@testable import SleeveGlow
 
 struct GlowAnimatorTests {
     func inputs(_ preset: GlowPreset, playing: Bool = true, idle: GlowIdleBehavior = .breathe, audio: AudioFeatures = .silent) -> GlowInputs {
@@ -104,6 +104,46 @@ struct GlowAnimatorTests {
             let f = run(&a, inputs(preset, audio: loud(bass: 0.6)), seconds: 1)
             #expect(f.field.count == GlowAnimator.fieldResolution)
             #expect(f.field.allSatisfy { (0...1).contains($0.red) && (0...1).contains($0.green) && (0...1).contains($0.blue) })
+        }
+    }
+
+    @Test func studioIsStaticAndBrightestOnTop() {
+        var a = GlowAnimator()
+        let f = run(&a, inputs(.studio), seconds: 6)
+        #expect(!f.needsContinuousUpdates)
+        let n = GlowAnimator.fieldResolution
+        // s = 0.25 is the top centre, 0.75 the bottom centre.
+        #expect(luminance(f.field[n / 4]) > luminance(f.field[3 * n / 4]))
+        #expect(!GlowPreset.studio.usesAudio)
+    }
+
+    @Test func tideRisesWithLoudness() {
+        func topBrightness(level: Float) -> Double {
+            var a = GlowAnimator()
+            let audio = AudioFeatures(level: level, bass: level, mid: level, treble: level, beat: 0, spectrum: [], isSilent: false)
+            let f = run(&a, inputs(.tide, audio: audio), seconds: 4)
+            // Up the right side, three quarters of the way to the top.
+            return luminance(f.field[GlowAnimator.fieldResolution / 8])
+        }
+        #expect(topBrightness(level: 0.9) > topBrightness(level: 0.05) * 1.5)
+    }
+
+    @Test func haloGathersInTheCorners() {
+        var a = GlowAnimator()
+        let f = run(&a, inputs(.halo, audio: loud(bass: 0.8)), seconds: 2)
+        let n = Double(GlowAnimator.fieldResolution)
+        let corner = luminance(f.field[Int(0.096 * n)])
+        let edgeMiddle = luminance(f.field[Int(0.25 * n)])
+        #expect(corner > edgeMiddle * 1.5)
+    }
+
+    @Test func emberNoiseIsSmoothAndBounded() {
+        var previous = GlowAnimator.noise(0)
+        for i in 1...2000 {
+            let v = GlowAnimator.noise(Double(i) * 0.01)
+            #expect((0...1).contains(v))
+            #expect(abs(v - previous) < 0.05)
+            previous = v
         }
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import AfterglowCore
+@testable import SleeveCore
 
 struct PlaybackTests {
     let track = Track(title: "T", artist: "A", album: "B", duration: 100)

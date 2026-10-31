@@ -1,6 +1,6 @@
-import AfterglowAudio
-import AfterglowCore
-import AfterglowGlow
+import SleeveAudio
+import SleeveCore
+import SleeveGlow
 import SwiftUI
 
 struct GlowStudioScreen: View {
@@ -15,21 +15,23 @@ struct GlowStudioScreen: View {
         ZStack {
             AmbientBackdrop(artwork: nil, palette: palette, intensity: 0.45)
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.s8) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     header
 
-                    VStack(spacing: DS.Space.s3) {
+                    VStack(spacing: DS.Space.s4) {
                         DevicePreview(
                             configuration: .init(settings: glow, colors: env.glowColors, isPlaying: env.nowPlaying.isPlaying),
                             palette: palette,
                             onSignalChange: { live in previewIsLive = live }
                         )
-                        .frame(maxWidth: 820)
-                        HStack(spacing: DS.Space.s2) {
-                            if previewIsLive {
+                        .frame(maxWidth: 760)
+                        HStack(spacing: DS.Space.s4) {
+                            if !glow.followBeat {
+                                StatusPill(text: "Gentle motion, no audio", symbol: "wind")
+                            } else if previewIsLive {
                                 StatusPill(text: "Live audio", symbol: "waveform", color: .green)
                             } else {
-                                StatusPill(text: "Demo signal: play music to preview with your own sound", symbol: "waveform.path")
+                                StatusPill(text: "Demo beat: play music to preview with your own sound", symbol: "waveform.path")
                             }
                             StatusPill(text: glow.style.preset.displayName, symbol: "sparkles")
                             if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
@@ -37,11 +39,18 @@ struct GlowStudioScreen: View {
                             }
                         }
                     }
+                    .padding(.horizontal, DS.Space.s6)
+                    .padding(.top, DS.Space.s6)
+                    .padding(.bottom, DS.Space.s4)
                     .frame(maxWidth: .infinity)
+                    .cardSurface()
 
                     PresetGallery()
 
-                    ControlsGrid()
+                    VStack(alignment: .leading, spacing: DS.Space.s3) {
+                        SectionLabel("Fine-tune")
+                        ControlsGrid()
+                    }
                 }
                 .padding(.horizontal, 40)
                 .padding(.vertical, 32)
@@ -53,23 +62,20 @@ struct GlowStudioScreen: View {
 
     private var header: some View {
         @Bindable var settings = env.settings
-        return HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Edge Glow").font(DS.Font.display)
-                Text("Ambient light around your display that moves with your music.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            Spacer()
+        return PageHeader(title: "Edge Glow", subtitle: "Light around your display that moves with your music.") {
             VStack(alignment: .trailing, spacing: 6) {
                 Toggle(isOn: $settings.settings.glow.isEnabled) {
-                    Text(settings.settings.glow.isEnabled ? "On your screen" : "Show on screen")
-                        .font(.system(size: 13, weight: .semibold))
+                    Text(settings.settings.glow.isEnabled ? "On" : "Off")
+                        .font(DS.Font.title)
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .contentTransition(.opacity)
                 }
                 .toggleStyle(.switch)
-                .controlSize(.large)
-                AudioStatusRow(state: env.audio.state, preset: settings.settings.glow.style.preset, waitingForPermission: env.audio.isWaitingForPermission)
-                    .frame(maxWidth: 320, alignment: .trailing)
+                .accessibilityLabel("Show edge glow on screen")
+                if settings.settings.glow.followBeat {
+                    AudioStatusRow(state: env.audio.state, preset: settings.settings.glow.style.preset, waitingForPermission: env.audio.isWaitingForPermission)
+                        .frame(maxWidth: 320, alignment: .trailing)
+                }
             }
         }
     }
@@ -81,8 +87,12 @@ private struct PresetGallery: View {
     @Environment(AppEnvironment.self) private var env
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s4) {
-            Text("Presets").font(.system(size: 20, weight: .semibold))
+        VStack(alignment: .leading, spacing: DS.Space.s3) {
+            SectionLabel(title: "Presets") {
+                Text("\(GlowPreset.allCases.count) looks")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 196, maximum: 280), spacing: DS.Space.s4)], spacing: DS.Space.s4) {
                 ForEach(GlowPreset.allCases) { preset in
                     PresetCard(preset: preset)
@@ -117,15 +127,15 @@ private struct PresetCard: View {
                     ))
                 }
                 .aspectRatio(16.0 / 10, contentMode: .fit)
-                .clipShape(.rect(cornerRadius: DS.Radius.sm, style: .continuous))
+                .clipShape(.rect(cornerRadius: DS.Radius.md - 2, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
-                        Text(preset.displayName).font(.system(size: 13, weight: .semibold))
+                        Text(preset.displayName).font(.system(size: 13, weight: .semibold)).foregroundStyle(DS.Palette.textPrimary)
                         Spacer()
                         if selected {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.white)
+                                .foregroundStyle(DS.Palette.accent)
                                 .transition(.scale.combined(with: .opacity))
                         } else if preset.usesAudio {
                             Image(systemName: "waveform").font(.system(size: 10)).foregroundStyle(.tertiary)
@@ -134,17 +144,18 @@ private struct PresetCard: View {
                     }
                     Text(preset.summary)
                         .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(DS.Palette.textTertiary)
                         .lineLimit(2, reservesSpace: true)
                 }
             }
             .padding(DS.Space.s3)
-            .background(.white.opacity(selected ? 0.1 : (hovering ? 0.07 : 0.04)), in: .rect(cornerRadius: DS.Radius.lg, style: .continuous))
+            .cardSurface(cornerRadius: DS.Radius.md + DS.Space.s3 - 2, highlighted: selected)
             .overlay {
-                RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous)
-                    .strokeBorder(selected ? AnyShapeStyle(.white.opacity(0.7)) : AnyShapeStyle(.white.opacity(0.08)), lineWidth: selected ? 1.5 : 0.5)
+                RoundedRectangle(cornerRadius: DS.Radius.md + DS.Space.s3 - 2, style: .continuous)
+                    .fill(Color.white.opacity(hovering && !selected ? 0.03 : 0))
+                    .allowsHitTesting(false)
             }
-            .scaleEffect(hovering ? 1.015 : 1)
+            .offset(y: hovering ? -2 : 0)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -171,8 +182,8 @@ private struct ControlsGrid: View {
         let points: (Double) -> String = { "\(Int($0.rounded())) pt" }
         let times: (Double) -> String = { String(format: "%.1f×", $0) }
 
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: DS.Space.s4, alignment: .top), GridItem(.flexible(), spacing: DS.Space.s4, alignment: .top)], spacing: DS.Space.s4) {
-            GlassCard(title: "Light", symbol: "light.max") {
+        MasonryLayout {
+            GlassCard(title: "Light", symbol: "sun.max") {
                 ValueSlider(title: "Intensity", value: style.intensity, range: 0...1, format: percent, tint: tint)
                 ValueSlider(title: "Thickness", value: style.thickness, range: 2...40, format: points, tint: tint)
                 ValueSlider(title: "Spread", value: style.spread, range: 20...320, format: points, tint: tint)
@@ -187,23 +198,31 @@ private struct ControlsGrid: View {
             }
 
             GlassCard(title: "Audio response", symbol: "waveform",
-                      caption: "Afterglow analyses the sound your Mac plays only to animate light. It stays in memory and is never recorded or uploaded.") {
-                Group {
-                    ValueSlider(title: "Sensitivity", value: style.audioSensitivity, range: 0...2, format: times, tint: tint)
-                    ValueSlider(title: "Bass sensitivity", value: style.bassSensitivity, range: 0...2, format: times, tint: tint)
-                    ValueSlider(title: "Response speed", value: style.responseSpeed, range: 0...1, format: percent, tint: tint)
-                    Toggle("Beat synchronisation", isOn: style.beatSync)
-                    Toggle("React to all apps' audio", isOn: glow.reactToAllAudio)
-                        .help("Also light up for browsers and video. Off saves battery: audio is only analysed while Spotify or Music is playing.")
+                      caption: glow.wrappedValue.followBeat
+                        ? "Sound is analysed in memory to time the light, never recorded or uploaded. macOS shows a recording indicator while Sleeve is listening."
+                        : "Off: no audio is captured. While music plays, the glow moves gently on its own.") {
+                SettingToggle(title: "Follow the beat", detail: "Listens to the sound your Mac plays to sync the glow with the music.",
+                              isOn: glow.followBeat)
+                if glow.wrappedValue.followBeat {
+                    Group {
+                        ValueSlider(title: "Sensitivity", value: style.audioSensitivity, range: 0...2, format: times, tint: tint)
+                        ValueSlider(title: "Bass sensitivity", value: style.bassSensitivity, range: 0...2, format: times, tint: tint)
+                        ValueSlider(title: "Response speed", value: style.responseSpeed, range: 0...1, format: percent, tint: tint)
+                        RowDivider()
+                        SettingToggle(title: "Beat synchronisation", detail: nil, isOn: style.beatSync)
+                        SettingToggle(title: "React to all apps' audio",
+                                      detail: "Also for apps Sleeve can't detect. Off saves battery.",
+                                      isOn: glow.reactToAllAudio)
+                    }
+                    .disabled(!style.wrappedValue.preset.usesAudio)
                 }
-                .disabled(!style.wrappedValue.preset.usesAudio)
                 if !style.wrappedValue.preset.usesAudio {
-                    Text("Ambient doesn't use audio.").font(.system(size: 11)).foregroundStyle(.tertiary)
+                    Text("\(style.wrappedValue.preset.displayName) doesn't use audio.").font(.system(size: 11)).foregroundStyle(.tertiary)
                 }
             }
 
             GlassCard(title: "Colour", symbol: "paintpalette") {
-                Toggle("Match album artwork", isOn: style.useArtworkColors)
+                SettingToggle(title: "Match album artwork", detail: nil, isOn: style.useArtworkColors)
                 HStack(spacing: 6) {
                     ForEach(Array(env.glowColors.enumerated()), id: \.offset) { _, color in
                         Circle().fill(color.color).frame(width: 22, height: 22)
@@ -239,19 +258,25 @@ private struct ControlsGrid: View {
 
             GlassCard(title: "Displays", symbol: "display.2",
                       caption: "The glow can't appear over the login screen, Mission Control, or games that take exclusive control of a display.") {
-                Picker("Show on", selection: glow.displays) {
-                    Text("All displays").tag(DisplaySelection.all)
-                    Text("Main display").tag(DisplaySelection.main)
-                    ForEach(EdgeGlowRenderer.availableDisplays) { display in
-                        Text(display.name).tag(DisplaySelection.specific([display.id]))
+                HStack {
+                    Text("Show on").font(DS.Font.title).foregroundStyle(DS.Palette.textPrimary)
+                    Spacer()
+                    Picker("Show on", selection: glow.displays) {
+                        Text("All displays").tag(DisplaySelection.all)
+                        Text("Main display").tag(DisplaySelection.main)
+                        ForEach(EdgeGlowRenderer.availableDisplays) { display in
+                            Text(display.name).tag(DisplaySelection.specific([display.id]))
+                        }
                     }
+                    .labelsHidden()
+                    .fixedSize()
                 }
                 LabeledPicker(title: "Notch", selection: glow.notchMode, options: NotchMode.allCases) { $0.displayName }
-                Toggle("HDR highlights", isOn: glow.hdrHighlights)
-                    .help("On XDR and HDR displays, highlights shine brighter than white. Uses more power.")
+                SettingToggle(title: "HDR highlights", detail: "Brighter than white on XDR and HDR displays. Uses more power.",
+                              isOn: glow.hdrHighlights)
             }
 
-            GlassCard(title: "Your presets", symbol: "square.stack") {
+            GlassCard(title: "Your presets", symbol: "bookmark") {
                 if glow.wrappedValue.customPresets.isEmpty {
                     Text("Save the current look to come back to it anytime.")
                         .font(.system(size: 12)).foregroundStyle(.secondary)
@@ -264,7 +289,7 @@ private struct ControlsGrid: View {
                         Button("Apply") {
                             withAnimation { env.settings.settings.glow.style = preset.style }
                         }
-                        .controlSize(.small)
+                        .buttonStyle(.quiet)
                         Button(role: .destructive) {
                             env.settings.settings.glow.customPresets.removeAll { $0.id == preset.id }
                         } label: { Image(systemName: "trash") }
@@ -273,20 +298,27 @@ private struct ControlsGrid: View {
                     }
                 }
                 HStack {
-                    TextField("Name", text: $newPresetName)
-                        .textFieldStyle(.roundedBorder)
+                    TextField("Name this look", text: $newPresetName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(DS.Palette.inset, in: .rect(cornerRadius: DS.Radius.sm, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: DS.Radius.sm, style: .continuous).strokeBorder(DS.Palette.hairline, lineWidth: 0.5)
+                        }
                     Button("Save") {
                         let name = newPresetName.trimmingCharacters(in: .whitespaces)
                         env.settings.settings.glow.customPresets.append(CustomGlowPreset(name: name, style: style.wrappedValue))
                         newPresetName = ""
                     }
+                    .buttonStyle(.quiet)
                     .disabled(newPresetName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                Button("Reset look to defaults") {
+                Button("Reset Look to Defaults") {
                     withAnimation { env.settings.settings.glow.style = GlowStyle() }
                 }
-                .buttonStyle(.link)
-                .font(.system(size: 11))
+                .buttonStyle(.quiet)
             }
         }
     }
@@ -304,7 +336,7 @@ struct LabeledPicker<Option: Hashable & Identifiable>: View {
 
     var body: some View {
         HStack {
-            Text(title).font(.system(size: 12, weight: .medium))
+            Text(title).font(DS.Font.title).foregroundStyle(DS.Palette.textPrimary)
             Spacer()
             Picker(title, selection: $selection) {
                 ForEach(options) { Text(label($0)).tag($0) }

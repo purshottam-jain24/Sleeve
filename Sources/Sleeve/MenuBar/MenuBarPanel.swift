@@ -1,5 +1,6 @@
-import AfterglowAudio
-import AfterglowCore
+import SleeveAudio
+import SleeveCore
+import SleeveWallpaper
 import SwiftUI
 
 struct MenuBarLabel: View {
@@ -7,7 +8,7 @@ struct MenuBarLabel: View {
 
     var body: some View {
         Image(systemName: nowPlaying.isPlaying ? "waveform" : "music.note")
-            .accessibilityLabel("Afterglow")
+            .accessibilityLabel("Sleeve")
     }
 }
 
@@ -16,15 +17,18 @@ struct MenuBarPanel: View {
     @Environment(AppEnvironment.self) private var env
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s4) {
-            NowPlayingSection()
-            Divider()
-            GlowQuickControls()
-            Divider()
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
+            NowPlayingSection().panelCard()
+            GlowQuickControls().panelCard()
+            WallpaperQuickControls().panelCard()
             footer
+                .padding(.horizontal, DS.Space.s2)
+                .padding(.top, 2)
         }
-        .padding(DS.Space.s4)
-        .frame(width: 320)
+        .padding(DS.Space.s2)
+        .frame(width: 340)
+        .preferredColorScheme(.dark)
+        .tint(DS.Palette.accent)
     }
 
     @Environment(\.openWindow) private var openWindow
@@ -35,7 +39,7 @@ struct MenuBarPanel: View {
                 openWindow(id: MainWindow.id)
                 NSApp.activate(ignoringOtherApps: true)
             } label: {
-                Label("Open Afterglow", systemImage: "macwindow")
+                Label("Open Sleeve", systemImage: "macwindow")
             }
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
@@ -43,6 +47,7 @@ struct MenuBarPanel: View {
         }
         .buttonStyle(.borderless)
         .font(.system(size: 12))
+        .foregroundStyle(DS.Palette.textSecondary)
     }
 }
 
@@ -59,7 +64,7 @@ private struct NowPlayingSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(track.title).font(DS.Font.title).lineLimit(1)
                         Text(track.artist).font(DS.Font.subtitle).foregroundStyle(.secondary).lineLimit(1)
-                        Label(snapshot.source.displayName, systemImage: snapshot.source == .spotify ? "dot.radiowaves.left.and.right" : "music.note")
+                        Label(snapshot.displayPlayerName, systemImage: snapshot.source == .web ? "globe" : "music.note")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
@@ -98,19 +103,19 @@ private struct NowPlayingSection: View {
 
     private var canControl: Bool {
         if case .limited(.automationDenied) = activeStatus { return false }
-        return true
+        return env.nowPlaying.snapshot?.supportsControl ?? false
     }
 
     private var permissionMessage: String? {
         if case .limited(.automationDenied) = activeStatus {
-            return "Allow Afterglow to control \(env.nowPlaying.snapshot?.source.displayName ?? "the player") to enable controls and artwork."
+            return "Allow Sleeve to control \(env.nowPlaying.snapshot?.source.displayName ?? "the player") to enable controls and artwork."
         }
         return nil
     }
 
     private var emptyHint: String {
         env.settings.settings.general.autoDetectMusic
-            ? "Play something in Spotify or Music."
+            ? "Play something in Spotify, Music or your browser."
             : "Music detection is turned off in Settings."
     }
 }
@@ -122,7 +127,8 @@ private struct GlowQuickControls: View {
         @Bindable var settings = env.settings
         VStack(alignment: .leading, spacing: DS.Space.s3) {
             Toggle(isOn: $settings.settings.glow.isEnabled) {
-                Label("Edge Glow", systemImage: "rectangle.dashed")
+                PanelTitle(title: "Edge Glow", symbol: "sparkles")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .toggleStyle(.switch)
             .controlSize(.small)
@@ -134,7 +140,14 @@ private struct GlowQuickControls: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
 
-                AudioStatusRow(state: env.audio.state, preset: settings.settings.glow.style.preset, waitingForPermission: env.audio.isWaitingForPermission)
+                Toggle("Follow the beat", isOn: $settings.settings.glow.followBeat)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .font(.system(size: 12))
+                    .help("Listens to system audio to sync the glow. Off: no audio is captured.")
+                if settings.settings.glow.followBeat {
+                    AudioStatusRow(state: env.audio.state, preset: settings.settings.glow.style.preset, waitingForPermission: env.audio.isWaitingForPermission)
+                }
             }
         }
     }
@@ -155,12 +168,13 @@ struct AudioStatusRow: View {
                     perform: SystemSettingsLinks.openAudioCapture
                 )
             case .running(let backend):
-                Label("Reacting to system audio (\(backend.rawValue))", systemImage: "waveform")
+                Label("Listening to system audio", systemImage: "waveform")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .help("Using \(backend.rawValue). Audio is analysed in memory, never recorded.")
             case .starting where waitingForPermission:
                 PermissionNotice(
-                    message: "Waiting for permission to hear system audio. Look for a macOS prompt, or allow Afterglow under Screen & System Audio Recording.",
+                    message: "Waiting for permission to hear system audio. Look for a macOS prompt, or allow Sleeve under Screen & System Audio Recording.",
                     action: "Open Privacy Settings",
                     perform: SystemSettingsLinks.openAudioCapture
                 )
@@ -171,6 +185,29 @@ struct AudioStatusRow: View {
             case .idle:
                 EmptyView()
             }
+        }
+    }
+}
+
+private extension View {
+    /// A section of the menu bar panel: the app's card surface, flat (the panel itself
+    /// already floats).
+    func panelCard() -> some View {
+        padding(DS.Space.s4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardSurface(cornerRadius: DS.Radius.lg, shadow: false)
+    }
+}
+
+/// Icon tile and title, used as the label of a panel section's main switch.
+private struct PanelTitle: View {
+    var title: String
+    var symbol: String
+
+    var body: some View {
+        HStack(spacing: DS.Space.s2) {
+            IconTile(symbol: symbol, size: 22)
+            Text(title).font(DS.Font.cardTitle).foregroundStyle(DS.Palette.textPrimary)
         }
     }
 }
@@ -192,5 +229,41 @@ struct PermissionNotice: View {
         }
         .padding(DS.Space.s2)
         .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: DS.Radius.sm))
+    }
+}
+
+private struct WallpaperQuickControls: View {
+    @Environment(AppEnvironment.self) private var env
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        @Bindable var settings = env.settings
+        let wallpaper = env.wallpaper
+        VStack(alignment: .leading, spacing: DS.Space.s3) {
+            PanelTitle(title: "Wallpaper", symbol: "photo.on.rectangle")
+            if let video = wallpaper.activeVideo {
+                HStack(spacing: DS.Space.s2) {
+                    Text(video.name)
+                        .font(.system(size: 12))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Button(wallpaper.isPaused ? "Resume" : "Pause") { wallpaper.isPaused.toggle() }
+                    Button("Turn Off") { wallpaper.stopVideo() }
+                }
+                .buttonStyle(.quiet)
+            } else {
+                Button("Choose a live wallpaper…") {
+                    env.section = .wallpaper
+                    openWindow(id: MainWindow.id)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .buttonStyle(.quiet)
+            }
+            Toggle("Artwork on lock screen", isOn: $settings.settings.wallpaper.artworkOnLockScreen)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .font(.system(size: 12))
+        }
     }
 }

@@ -24,6 +24,8 @@ public final class LyricsService {
     @ObservationIgnored private let provider: any LyricsProvider
     @ObservationIgnored private let cache: LyricsCache
     @ObservationIgnored private var loadTask: Task<Void, Never>?
+    /// Automatic retries left for the current track after a failure (service busy, offline).
+    @ObservationIgnored private var autoRetriesLeft = 3
 
     public init(provider: any LyricsProvider = LRCLibProvider(), cache: LyricsCache = LyricsCache()) {
         self.provider = provider
@@ -41,10 +43,20 @@ public final class LyricsService {
     public func update(for track: Track?) {
         guard track?.cacheKey != self.track?.cacheKey else { return }
         self.track = track
+        autoRetriesLeft = 3
         candidates = []
         searchError = nil
         load(force: false)
     }
+
+    #if DEBUG
+    /// Layout snapshots only: shows the given state without fetching.
+    public func debugShow(_ state: State) {
+        loadTask?.cancel()
+        autoRetriesLeft = 0
+        self.state = state
+    }
+    #endif
 
     public func retry() {
         load(force: true)
@@ -78,10 +90,22 @@ public final class LyricsService {
                 cache.store(result, for: track)
                 self?.apply(result)
             } catch {
-                guard !Task.isCancelled else { return }
-                self?.state = .failed((error as? URLError)?.code == .notConnectedToInternet
-                    ? "You're offline. Lyrics will load when you reconnect."
-                    : "Couldn't reach the lyrics service.")
+                guard !Task.isCancelled, let self else { return }
+                let code = (error as? URLError)?.code
+                let message = switch code {
+                case .notConnectedToInternet: "You're offline. Lyrics will load when you reconnect."
+                case .resourceUnavailable: "\(self.providerName) is busy right now. Trying again shortly."
+                default: "Couldn't reach \(self.providerName). Trying again shortly."
+                }
+                self.state = .failed(message)
+                guard self.autoRetriesLeft > 0 else { return }
+                self.autoRetriesLeft -= 1
+                let delay = Double(3 - self.autoRetriesLeft) * 20
+                self.loadTask = Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(delay))
+                    guard !Task.isCancelled, self?.track?.cacheKey == track.cacheKey else { return }
+                    self?.load(force: true)
+                }
             }
         }
     }
@@ -127,7 +151,8 @@ public final class LyricsCache: Sendable {
     private let directory: URL?
 
     public init(directory: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("app.afterglow/lyrics", isDirectory: true)) {
+        // v2: matching became stricter; drop results cached by the looser rules.
+        .appendingPathComponent("app.sleeve/lyrics-v2", isDirectory: true)) {
         self.directory = directory
         if let directory {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
