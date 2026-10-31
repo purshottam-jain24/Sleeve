@@ -4,6 +4,16 @@ A native macOS music companion with a cinematic Now Playing screen, synced lyric
 
 macOS 14 Sonoma or later · Apple Silicon and Intel · Swift 6 · SwiftUI + AppKit · no third-party dependencies.
 
+![Edge Glow: light around your display that moves with your music](docs/screenshots/edge-glow.png)
+
+## Screenshots
+
+| Now Playing | Wallpaper |
+|---|---|
+| ![Now Playing](docs/screenshots/now-playing.png) | ![Live wallpaper and lock screen artwork](docs/screenshots/wallpaper.png) |
+| **Music Sources** | **Settings** |
+| ![Spotify, Music and browser sources](docs/screenshots/music-sources.png) | ![Settings](docs/screenshots/settings.png) |
+
 ## Install
 
 1. Download `Sleeve-<version>.dmg` from the [Releases](../../releases) page.
